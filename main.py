@@ -205,6 +205,17 @@ def persistence_quantiles(p1, hour):
     return [round2(p1 * math.exp(z * 0.15 * math.sqrt(hour - 1))) for z in Z]
 
 
+def clamp_features(features, train):
+    """Clamp each feature to the training range: no extrapolation."""
+    keys = ["log_p1", "log_p1_peak"]
+    clamped = []
+    for i, key in enumerate(keys):
+        lo = min(t[key] for t in train)
+        hi = max(t[key] for t in train)
+        clamped.append(min(max(features[i], lo), hi))
+    return tuple(clamped)
+
+
 def forecast_case(case, name):
     if case.get("levels") != LEVELS:
         raise ValueError(f"{name} asks for levels {case.get('levels')}, not {LEVELS}")
@@ -224,15 +235,7 @@ def forecast_case(case, name):
                          "q": persistence_quantiles(p1, row["hour"])})
         return {"hours": rows}
 
-    features = case_features(case, p1)
-    # Clamp the target's features to the training range: no extrapolation.
-    feats = list(features)
-    keys = ["log_p1", "log_p1_peak"]
-    for i, key in enumerate(keys):
-        lo = min(t[key] for t in train)
-        hi = max(t[key] for t in train)
-        feats[i] = min(max(feats[i], lo), hi)
-    features = tuple(feats)
+    features = clamp_features(case_features(case, p1), train)
 
     for row in case["forecast"]:
         hour = row["hour"]
